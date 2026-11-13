@@ -1,6 +1,11 @@
 #! /usr/bin/bash
 set -euo pipefail
 
+# KFR's headers need this with GCC (its own build sets it, the installed
+# CMake package does not pass it on); without it the NEON code of
+# linux-aarch64 does not compile.
+export CXXFLAGS="${CXXFLAGS:-} -flax-vector-conversions"
+
 # ${CMAKE_ARGS} carries conda-build's -DCMAKE_BUILD_TYPE=Release and the
 # toolchain paths. SINGLE (a list, with the recipe's patch) selects the
 # libraries whose benchmark is built.
