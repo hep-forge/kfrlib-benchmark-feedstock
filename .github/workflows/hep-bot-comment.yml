@@ -1,0 +1,58 @@
+name: hep-bot issue comment
+
+# Issue commands for hep-bot. The same file runs in hep-forge/.github and
+# in every feedstock (synced from scripts/templates/hep-bot-comment.yml by
+# render-sync); the command logic lives in scripts/hep_bot/comment.py in
+# hep-forge/.github, checked out at run time, so new commands don't need
+# a fleet-wide re-sync. Commands (repo collaborators only):
+#
+#   @hep-bot rerun [<pkg>] <tag>     rebuild + publish an existing tag
+#   @hep-bot rerender [<pkg>]        re-apply the hep-forge render and
+#                                    register the feedstock in hep-forge/.github
+#   @hep-bot new <pkg> <upstream-url> [license=..] [maintainers=..] [summary]
+#                                    scaffold hep-forge/<pkg>-feedstock
+#   @hep-bot status [<pkg>]          tags, last builds, what is published
+#   @hep-bot help [<topic>]          commands + guides, or one guide
+#
+# Commands work in an issue body (when the issue is opened) or in a
+# comment; in pull requests only `help` and `status` are answered. Where HEP_BOT_TOKEN
+# isn't available the job falls back to GITHUB_TOKEN, which can rerun that
+# feedstock's own build and reply, while rerender/new are left to the sweep.
+
+on:
+  issues:
+    types: [opened]
+  issue_comment:
+    types: [created]
+
+permissions:
+  issues: write
+  actions: write
+  contents: read
+
+jobs:
+  command:
+    if: >
+      !contains(github.event_name == 'issues' && github.event.issue.body || github.event.comment.body, '<!-- hep-bot:') && (
+        contains(github.event_name == 'issues' && github.event.issue.body || github.event.comment.body, '@hep-bot') ||
+        (github.event_name == 'issues' && (
+          startsWith(github.event.issue.title, '[rerender]') ||
+          startsWith(github.event.issue.title, '[new-feedstock]'))))
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Fetch hep-bot
+        uses: actions/checkout@v4
+        with:
+          repository: hep-forge/.github
+          ref: main
+          sparse-checkout: scripts/hep_bot
+          path: hep-forge-meta
+
+      - name: Run command
+        env:
+          GH_TOKEN: ${{ secrets.HEP_BOT_TOKEN || github.token }}
+          HAS_PAT: ${{ secrets.HEP_BOT_TOKEN != '' }}
+          EVENT_NAME: ${{ github.event_name }}
+          REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: python3 hep-forge-meta/scripts/hep_bot/comment.py
