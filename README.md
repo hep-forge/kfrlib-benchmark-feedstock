@@ -9,11 +9,16 @@ Feedstock for [kfrlib-benchmark](https://github.com/kfrlib/fft-benchmark) — pa
 Builds linux-amd64 + linux-arm64 in one matrix workflow and uploads to the
 [hep-forge](https://anaconda.org/hep-forge) Anaconda channel.
 
-FFT and sample-rate-conversion benchmark of KFR against FFTW and KissFFT
+FFT and sample rate conversion benchmark of KFR 5, 6 and 7 against FFTW and KissFFT
 
 ## Architectures
 
-State per architecture: see the platforms badge above or [anaconda.org/hep-forge/kfrlib-benchmark](https://anaconda.org/hep-forge/kfrlib-benchmark).
+| Architecture | Latest published |
+|--------------|------------------|
+| linux-amd64 (`linux-64`) | ✅ `head` |
+| linux-arm64 (`linux-aarch64`) | ✅ `head` |
+
+_As of the last feedstock render; the badges above are live._
 
 
 ## Install
