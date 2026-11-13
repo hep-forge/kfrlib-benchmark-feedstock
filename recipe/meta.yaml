@@ -18,18 +18,32 @@ package:
 
 source:
   # any other version (the `head` tag) builds upstream's default branch
-  url: "https://github.com/kfrlib/fft-benchmark/archive/{{ versions.get(version, 'refs/heads/master') }}.tar.gz"
-  {% if sha256s.get(version, None) %}
-  sha256: {{ sha256s.get(version) }}
-  {% endif %}
-  patches:
-    # upstream builds its dependencies with a vcpkg submodule and compiles
-    # either one library or all of them: use the libraries of the host
-    # environment and accept a list of libraries instead
-    - 0001-build-against-installed-libraries.patch
+  - url: "https://github.com/kfrlib/fft-benchmark/archive/{{ versions.get(version, 'refs/heads/master') }}.tar.gz"
+    {% if sha256s.get(version, None) %}
+    sha256: {{ sha256s.get(version) }}
+    {% endif %}
+    patches:
+      # upstream builds its dependencies with a vcpkg submodule and compiles
+      # either one library or all of them: use the libraries of the host
+      # environment, accept a list of libraries, and compile against KFR 5
+      # and 6 as well (KFR_LEGACY)
+      - 0001-build-against-installed-libraries.patch
+  # The two previous generations of KFR, benchmarked next to the current one
+  # (which comes from the kfrlib package): built from source into their own
+  # programs, fft_benchmark_kfr5-any and fft_benchmark_kfr6-any.
+  - url: "https://github.com/kfrlib/kfr/archive/refs/tags/5.2.0.tar.gz"
+    sha256: 8597b7334cf9f317daeeb64615d562a1374545e8c196b06a86705c7a391c6761
+    folder: kfr5
+    patches:
+      - kfr5-compile-with-current-clang.patch
+  - url: "https://github.com/kfrlib/kfr/archive/refs/tags/6.3.1.tar.gz"
+    sha256: 800f8e782fb514176c06526792ec766b718a7b91c73e9d07efe47dff6cb0816d
+    folder: kfr6
+    patches:
+      - kfr6-compile-with-current-clang.patch
 
 build:
-  number: 0
+  number: 1
   skip: true  # [not linux]
 
 requirements:
@@ -37,6 +51,9 @@ requirements:
     - {{ compiler('cxx') }}
     - {{ compiler('c') }}
     - {{ stdlib('c') }}
+    # the DFT of KFR 5 and 6 only compiles with Clang
+    - clang
+    - clangxx
     - cmake
     - ninja
   host:
@@ -49,6 +66,8 @@ test:
   commands:
     # one 1024-point transform per library, and KFR's sample rate converter
     - fft_benchmark_kfr-any --no-banner 1024
+    - fft_benchmark_kfr6-any --no-banner 1024
+    - fft_benchmark_kfr5-any --no-banner 1024
     - fft_benchmark_fftw-any --no-banner 1024
     - fft_benchmark_kissfft-any --no-banner 1024     # [not x86_64]
     - fft_benchmark_kissfft-avx2 --no-banner 1024    # [x86_64]
@@ -59,12 +78,15 @@ about:
   home: "https://github.com/kfrlib/fft-benchmark"
   license: "GPL-2.0-or-later"
   license_file: LICENSE
-  summary: "FFT and sample rate conversion benchmark of KFR against FFTW and KissFFT"
+  summary: "FFT and sample rate conversion benchmark of KFR 5, 6 and 7 against FFTW and KissFFT"
   description: |
     The benchmark programs of the KFR project (kfrlib/fft-benchmark), built
     against the hep-forge kfrlib package, conda-forge's FFTW and the bundled
     KissFFT: fft_benchmark_kfr-any, fft_benchmark_fftw-any,
     fft_benchmark_kissfft-avx2 / -avx512 (x86-64) and src_benchmark_kfr-any.
+    fft_benchmark_kfr5-any / kfr6-any and src_benchmark_kfr5-any / kfr6-any
+    are the same programs built with KFR 5.2.0 and 6.3.1, to compare the
+    three generations of the library.
     Each takes transform sizes as arguments and `--save <file.json>`; the
     plotting scripts of the project are in share/kfrlib-benchmark.
 

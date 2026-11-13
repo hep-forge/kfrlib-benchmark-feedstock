@@ -108,3 +108,85 @@ index d0f0657..540805c 100644
  
  else ()
      message(STATUS "FFTW3 is not found. Disabling FFTW3. Add <FFTW3> to CMAKE_PREFIX_PATH")
+diff --git a/libs/kfr/CMakeLists.txt b/libs/kfr/CMakeLists.txt
+index ede6803..1dc1571 100644
+--- a/libs/kfr/CMakeLists.txt
++++ b/libs/kfr/CMakeLists.txt
+@@ -1,6 +1,9 @@
+ if (KFR_SRC_DIR)
+ 
+-    add_compile_definitions(KFR_NG=1)
++    # KFR_LEGACY: a KFR older than 7.1, without the ngFFT interface
++    if (NOT KFR_LEGACY)
++        add_compile_definitions(KFR_NG=1)
++    endif ()
+ 
+     set(CMAKE_CXX_STANDARD 20)
+     set(CMAKE_CXX_EXTENSIONS ON)
+@@ -19,5 +22,9 @@ else ()
+ endif ()
+ 
+ if (TARGET kfr)
+-    add_benchmark(kfr FFT SRC ANY SOURCES ${CMAKE_CURRENT_LIST_DIR}/kfr.cpp LIBRARIES kfr kfr_dft kfr_dsp)
++    set(KFR_BENCHMARK_LIBRARIES kfr kfr_dft)
++    if (TARGET kfr_dsp) # a separate library since KFR 6
++        list(APPEND KFR_BENCHMARK_LIBRARIES kfr_dsp)
++    endif ()
++    add_benchmark(kfr FFT SRC ANY SOURCES ${CMAKE_CURRENT_LIST_DIR}/kfr.cpp LIBRARIES ${KFR_BENCHMARK_LIBRARIES})
+ endif ()
+diff --git a/libs/kfr/kfr.cpp b/libs/kfr/kfr.cpp
+index 7d63e58..3975e3d 100644
+--- a/libs/kfr/kfr.cpp
++++ b/libs/kfr/kfr.cpp
+@@ -12,15 +12,24 @@
+ #include "src_benchmark.hpp"
+ #include <string>
+ 
++#if KFR_VERSION_MAJOR >= 6
+ namespace kfr
+ {
+ const char* library_version_dft();
+ const char* library_version_dsp();
+ } // namespace kfr
++#else
++// KFR 5 has one version string for the whole library
++namespace kfr
++{
++inline const char* library_version_dft() { return library_version(); }
++inline const char* library_version_dsp() { return library_version(); }
++} // namespace kfr
++#endif
+ 
+ std::string fft_name()
+ {
+-#if defined(__x86_64__) || defined(_M_X64)
++#if (defined(__x86_64__) || defined(_M_X64)) && KFR_VERSION_MAJOR >= 6 // override_cpu: KFR 6+
+     if (avx2only)
+     {
+         fprintf(stderr, "KFR: enabling AVX2\n");
+@@ -134,6 +143,7 @@ private:
+     unsigned char* temp;
+ };
+ 
++#if KFR_VERSION_MAJOR >= 6 // multidimensional plans: KFR 6+
+ // complex, multidimensional
+ template <int dims, typename real, bool invert, bool inplace>
+ class fft_implementation<dims, real, true, invert, inplace> : public fft_impl<real>
+@@ -182,6 +192,8 @@ private:
+     unsigned char* temp;
+ };
+ 
++#endif
++
+ template <typename real>
+ fft_impl_ptr<real> fft_create(const std::vector<size_t>& size, bool is_complex, bool invert, bool inplace)
+ {
+@@ -211,7 +223,7 @@ std::string src_name()
+     printf("sidelobe attenuation: %f dB, transition width: %f radians, filter order: %u, param = %f\n", att,
+            trans, order, param);
+ 
+-#if defined(__x86_64__) || defined(_M_X64)
++#if (defined(__x86_64__) || defined(_M_X64)) && KFR_VERSION_MAJOR >= 6 // override_cpu: KFR 6+
+     if (avx2only)
+     {
+         fprintf(stderr, "KFR: enabling AVX2\n");
