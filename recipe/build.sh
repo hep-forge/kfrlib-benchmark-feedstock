@@ -1,13 +1,19 @@
 #! /usr/bin/bash
-set -e
+set -euo pipefail
 
-mkdir -p build
-cd build
+# ${CMAKE_ARGS} carries conda-build's -DCMAKE_BUILD_TYPE=Release and the
+# toolchain paths. SINGLE (a list, with the recipe's patch) selects the
+# libraries whose benchmark is built.
+cmake -S . -B build -G Ninja ${CMAKE_ARGS} \
+      -DCMAKE_PREFIX_PATH=$PREFIX \
+      "-DSINGLE=kfr;fftw;kissfft"
 
-cmake .. \
-  -DCMAKE_INSTALL_PREFIX="${PREFIX}" \
-  -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j${CPU_COUNT:-2}
 
-NPROC=$(nproc 2>/dev/null || sysctl -n hw.ncpu)
-make -j"$NPROC"
-make install
+# upstream has no install step: the programs are left in the build directory
+mkdir -p $PREFIX/bin $PREFIX/share/kfrlib-benchmark
+for program in build/fft_benchmark_* build/src_benchmark_*; do
+    [ -f "$program" ] && [ -x "$program" ] && install -m 755 "$program" $PREFIX/bin/
+done
+cp plot.py spectrogram.py spectrum.py README.md $PREFIX/share/kfrlib-benchmark/
+cp -r plans $PREFIX/share/kfrlib-benchmark/

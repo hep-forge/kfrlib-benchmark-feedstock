@@ -1,48 +1,75 @@
+{# upstream has no release tags: a version is the date of the commit it builds #}
 {% set versions = {
-    "0.0.0": "REPLACE_WITH_SHA256"
+    "2026.06.23": "6dc202b7991ed2401690ded227a44f0a31f872e5"
+} %}
+{% set sha256s = {
+    "2026.06.23": "21fd6b8a402553da39d03edbf3269885d69e40c53b7dbf2582ce779387337cdf"
 } %}
 
 {% set version = environ.get('COMMIT_VERSION', None) %}
 {% set version = version or versions.keys()|first %}
 {% set version = version|string %}
 
-{% set name = environ.get('ANACONDA_PACKAGE', 'kfrlib-benchmark')|string|lower %}
+{% set name = environ.get('ANACONDA_PACKAGE', "kfrlib-benchmark")|string|lower %}
 
 package:
   name: {{ name }}
   version: {{ environ.get('ANACONDA_VERSION', version)|replace("-", ".") }}
 
 source:
-  url: "https://github.com/kfrlib/fft-benchmark/archive/refs/tags/{{ version }}.tar.gz"   # TODO: confirm upstream's actual tag/tarball naming
-  {% if versions.get(version, None) %}
-  sha256: {{ versions.get(version) }}
+  # any other version (the `head` tag) builds upstream's default branch
+  url: "https://github.com/kfrlib/fft-benchmark/archive/{{ versions.get(version, 'refs/heads/master') }}.tar.gz"
+  {% if sha256s.get(version, None) %}
+  sha256: {{ sha256s.get(version) }}
   {% endif %}
+  patches:
+    # upstream builds its dependencies with a vcpkg submodule and compiles
+    # either one library or all of them: use the libraries of the host
+    # environment and accept a list of libraries instead
+    - 0001-build-against-installed-libraries.patch
 
 build:
   number: 0
-  run_exports:
-    - {{ pin_subpackage(name, max_pin="x.x.x") }}
+  skip: true  # [not linux]
 
 requirements:
   build:
-    - {{ compiler('c') }}
     - {{ compiler('cxx') }}
+    - {{ compiler('c') }}
     - {{ stdlib('c') }}
     - cmake
-    - make
+    - ninja
   host:
-    # TODO: library dependencies
+    - kfrlib >=7.2
+    - fftw
   run:
-    # TODO: runtime dependencies
+    - fftw
 
 test:
   commands:
-    - echo "TODO: a real smoke test"
+    # one 1024-point transform per library, and KFR's sample rate converter
+    - fft_benchmark_kfr-any --no-banner 1024
+    - fft_benchmark_fftw-any --no-banner 1024
+    - fft_benchmark_kissfft-any --no-banner 1024     # [not x86_64]
+    - fft_benchmark_kissfft-avx2 --no-banner 1024    # [x86_64]
+    - test -x $PREFIX/bin/src_benchmark_kfr-any
+    - test -f $PREFIX/share/kfrlib-benchmark/plot.py
 
 about:
   home: "https://github.com/kfrlib/fft-benchmark"
   license: "GPL-2.0-or-later"
-  summary: "FFT and sample-rate-conversion benchmark of KFR against FFTW and KissFFT"
+  license_file: LICENSE
+  summary: "FFT and sample rate conversion benchmark of KFR against FFTW and KissFFT"
+  description: |
+    The benchmark programs of the KFR project (kfrlib/fft-benchmark), built
+    against the hep-forge kfrlib package, conda-forge's FFTW and the bundled
+    KissFFT: fft_benchmark_kfr-any, fft_benchmark_fftw-any,
+    fft_benchmark_kissfft-avx2 / -avx512 (x86-64) and src_benchmark_kfr-any.
+    Each takes transform sizes as arguments and `--save <file.json>`; the
+    plotting scripts of the project are in share/kfrlib-benchmark.
+
+    The benchmark sources are MIT licensed; the programs link KFR and FFTW,
+    so the package is distributed under GPL-2.0-or-later.
 
 extra:
   recipe-maintainers:
